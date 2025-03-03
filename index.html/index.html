@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>伤寒钤法AI - 泰山精方诊疗系统</title>
+    <!-- 使用国内CDN加速 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.loli.net/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --deepseek-blue: #1677ff;
+            --deepseek-bg: #f8fafc;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--deepseek-bg);
+        }
+
+        .chat-container {
+            scrollbar-width: thin;
+            scrollbar-color: var(--deepseek-blue) transparent;
+        }
+
+        .typing-indicator span {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="h-screen flex">
+    <!-- 左侧边栏 -->
+    <div class="w-64 bg-white border-r border-gray-200 flex flex-col">
+        <div class="p-4 bg-[var(--deepseek-blue)] text-white">
+            <div class="text-lg font-bold">伤寒钤法AI</div>
+            <div class="text-xs mt-1">v2.1.0</div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-2">
+            <div class="p-2 text-sm hover:bg-gray-100 rounded cursor-pointer">新建对话</div>
+            <div id="history-list" class="space-y-1"></div>
+        </div>
+    </div>
+
+    <!-- 主界面 -->
+    <div class="flex-1 flex flex-col">
+        <!-- 聊天区域 -->
+        <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-6 chat-container">
+            <!-- 系统消息 -->
+            <div class="flex gap-4 max-w-3xl mx-auto">
+                <div class="w-8 h-8 bg-[var(--deepseek-blue)] rounded-full flex items-center justify-center text-white">⚕</div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <div class="text-gray-800">
+                        <p class="mb-2">欢迎使用伤寒钤法AI诊疗系统，我是AI中医助手，请描述您的症状。</p >
+                        <div class="typing-indicator flex space-x-1">
+                            <span>·</span><span>·</span><span>·</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="border-t border-gray-200 p-4">
+            <div class="max-w-3xl mx-auto flex gap-2">
+                <input 
+                    id="user-input"
+                    type="text" 
+                    class="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--deepseek-blue)]"
+                    placeholder="请输入症状描述..."
+                >
+                <button 
+                    onclick="handleSend()"
+                    class="px-4 py-2 bg-[var(--deepseek-blue)] text-white rounded-lg hover:opacity-90 transition-opacity"
+                >
+                    发送
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 从环境变量获取API密钥（需在Vercel后台配置）
+        const API_KEY = process.env.API_KEY || 'sk-your-key-here';
+
+        async function handleSend() {
+            const userInput = document.getElementById('user-input');
+            const chatContainer = document.getElementById('chat-container');
+            
+            // 添加用户消息
+            chatContainer.innerHTML += `
+                <div class="flex gap-4 max-w-3xl mx-auto justify-end">
+                    <div class="bg-[var(--deepseek-blue)] text-white p-4 rounded-xl max-w-[80%]">
+                        ${userInput.value}
+                    </div>
+                </div>
+            `;
+
+            // 显示加载状态
+            const typingIndicator = document.querySelector('.typing-indicator');
+            typingIndicator.style.display = 'flex';
+
+            try {
+                const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: 'deepseek-chat',
+                        messages: [{
+                            role: 'system',
+                            content: '你是一位资深中医专家，用通俗易懂的中文交流，结合《伤寒论》理论分析病情，给出经方建议。使用中医术语但避免晦涩古文，适当用现代医学词汇解释。'
+                        }, {
+                            role: 'user',
+                            content: userInput.value
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+                const answer = data.choices[0].message.content;
+
+                // 添加AI回复
+                chatContainer.innerHTML += `
+                    <div class="flex gap-4 max-w-3xl mx-auto">
+                        <div class="w-8 h-8 bg-[var(--deepseek-blue)] rounded-full flex items-center justify-center text-white">⚕</div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                            <div class="text-gray-800">${answer}</div>
+                        </div>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('Error:', error);
+                chatContainer.innerHTML += `
+                    <div class="flex gap-4 max-w-3xl mx-auto">
+                        <div class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white">!</div>
+                        <div class="bg-red-50 p-4 rounded-xl shadow-sm border border-red-200">
+                            系统繁忙，请稍后再试
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 隐藏加载状态
+            typingIndicator.style.display = 'none';
+            userInput.value = '';
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // 回车发送
+        document.getElementById('user-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSend();
+        });
+    </script>
+</body>
+</html>
